@@ -2,10 +2,11 @@ module Main where
 
 import Prelude
 import Control.Alt ((<|>))
+import Control.Lazy (fix)
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
 import Data.Tuple (Tuple)
-import Parser (Parser, intP, strLiteralP, tagP)
+import Parser (Parser, charP, intP, manyP, sepByP, strLiteralP, tagP, wrappedP, wsP)
 
 data JsonValue
   = JsonNull
@@ -40,5 +41,17 @@ jsonString =
         str <- strLiteralP
         pure str
 
+jsonArray :: Parser JsonValue -> Parser JsonValue
+jsonArray p = JsonArray <$> wrappedP open (sepByP p wsAndComma) close
+  where
+    open = (charP '[') *> (manyP wsP)
+
+    close = (manyP wsP) <* (charP ']')
+
+    wsAndComma = (manyP wsP) *> (charP ',') <* (manyP wsP)
+
 jsonValue :: Parser JsonValue
-jsonValue = jsonNull <|> jsonBool <|> jsonNumber <|> jsonString
+jsonValue =
+  fix
+    $ \p ->
+        (jsonNull <|> jsonBool <|> jsonNumber <|> jsonString <|> jsonArray p)

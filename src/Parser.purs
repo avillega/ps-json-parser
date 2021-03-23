@@ -1,13 +1,12 @@
 module Parser where
 
 import Prelude
-
 import Control.Alt (class Alt, (<|>))
-import Control.Alternative (class Alternative, empty, guard)
+import Control.Alternative (class Alternative, empty)
+import Control.Lazy (class Lazy)
 import Control.MonadZero (guard)
 import Control.Plus (class Plus)
-import Data.Array (span, (:))
-import Data.Array.NonEmpty (NonEmptyArray)
+import Data.Array ((:))
 import Data.Int (fromString)
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (fromCharArray, toCharArray, uncons)
@@ -16,6 +15,9 @@ import Data.Tuple (Tuple(..))
 
 newtype Parser a
   = Parser (String -> Maybe (Tuple a String))
+
+instance lazyParser :: Lazy (Parser a) where
+  defer f = Parser $ \input -> let (Parser p) = f unit in p input
 
 instance functorParser :: Functor Parser where
   map func (Parser p) =
@@ -106,8 +108,8 @@ many1P parser = do
   pure (x : xs)
 
 -- white space parser
-wsP :: Parser  Char
-wsP = (charP ' ') <|> (charP '\t')
+wsP :: Parser Char
+wsP = (charP ' ') <|> (charP '\t') <|> (charP '\n')
 
 identifierP :: Parser String
 identifierP = fromCharArray <$> many1P alphanumP
@@ -136,7 +138,8 @@ strLiteralP = do
 natP :: Parser Int
 natP = do
   numChars <- many1P digitP
-  let numStr = fromCharArray numChars
+  let
+    numStr = fromCharArray numChars
   case fromString numStr of
     (Just n) -> pure n
     _ -> empty
@@ -147,9 +150,9 @@ intP = do
   n <- natP
   pure $ f n
   where
-    neg = do
-      _ <- charP '-'
-      pure negate
+  neg = do
+    _ <- charP '-'
+    pure negate
 
 tagP :: String -> Parser (Array Char)
 tagP str = sequenceDefault $ map charP $ toCharArray str
